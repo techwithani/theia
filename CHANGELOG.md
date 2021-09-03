@@ -12,6 +12,10 @@
 - [git] removed exports from namespace `defaultGutterStyles`, `maxWidth`, `continuationStyle`, `highlightStyle`). [#9999](https://github.com/eclipse-theia/theia/pull/9999)
 - [task] `TaskDefinition.properties.required` is now optional to align with the specification [#10015](https://github.com/eclipse-theia/theia/pull/10015)
 - [core] `setTopPanelVisibily` renamed to `setTopPanelVisibility` [#10020](https://github.com/eclipse-theia/theia/pull/10020)
+- [electron] `ElectronMainMenuFactory` now inherits from `BrowserMainMenuFactory` and its methods have been renamed. [#10044](https://github.com/eclipse-theia/theia/pull/10044)
+  - renamed `handleDefault` to `handleElectronDefault`
+  - renamed `createContextMenu` to `createElectronContextMenu`
+  - renamed `createMenuBar` to `createElectronMenuBar`
 - [application-manager] break `rebuild` API: second argument is now an optional object instead of an optional array.
 
 ## v1.17.2 - 9/1/2021
