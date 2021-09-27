@@ -14,52 +14,13 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { Localization } from '../common/i18n/localization';
+import { nls } from '../common/nls';
 import { Endpoint } from './endpoint';
-
-let localization: Localization | undefined;
-
-function format(message: string, args: string[]): string {
-    let result = message;
-    if (args.length > 0) {
-        result = message.replace(/\{(\d+)\}/g, (match, rest) => {
-            const index = rest[0];
-            const arg = args[index];
-            let replacement = match;
-            if (typeof arg === 'string') {
-                replacement = arg;
-            } else if (typeof arg === 'number' || typeof arg === 'boolean' || !arg) {
-                replacement = String(arg);
-            }
-            return replacement;
-        });
-    }
-    return result;
-}
-
-export namespace nls {
-
-    export const localeId = 'localeId';
-
-    export const locale = typeof window === 'object' && window && window.localStorage.getItem('localeId') || undefined;
-
-    export function localize(key: string, defaultValue: string, ...args: string[]): string {
-        let value = defaultValue;
-        if (localization) {
-            const translation = localization.translations[key];
-            if (translation) {
-                // vscode's localizations often contain additional '&&' symbols, which we simply ignore
-                value = translation.replace(/&&/g, '');
-            }
-        }
-        return format(value, args);
-    }
-}
 
 export async function loadTranslations(): Promise<void> {
     if (nls.locale) {
         const endpoint = new Endpoint({ path: '/i18n/' + nls.locale }).getRestUrl().toString();
         const response = await fetch(endpoint);
-        localization = await response.json();
+        nls.localization = await response.json();
     }
 }
