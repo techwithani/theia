@@ -24,7 +24,16 @@ export interface InternalDebugSessionOptions extends DebugSessionOptions {
     id: number
 }
 export namespace InternalDebugSessionOptions {
+    const SEPARATOR = '__CONF__';
     export function is(options: DebugSessionOptions): options is InternalDebugSessionOptions {
         return ('id' in options);
+    }
+
+    export function toValue({ configuration, workspaceFolderUri }: DebugSessionOptions): string {
+        return configuration.name + SEPARATOR + workspaceFolderUri + SEPARATOR + configuration.type;
+    }
+
+    export function parseValue(value: string): string[] {
+        return value.split(SEPARATOR);
     }
 }

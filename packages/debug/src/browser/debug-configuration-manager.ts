@@ -82,6 +82,9 @@ export class DebugConfigurationManager {
     protected debugConfigurationTypeKey: ContextKey<string>;
 
     protected initialized: Promise<void>;
+
+    protected dynamicDebugConfigurationsPerType: { type: string, configurations: DebugConfiguration[] }[];
+
     @postConstruct()
     protected async init(): Promise<void> {
         this.debugConfigurationTypeKey = this.contextKeyService.createKey<string>('debugConfigurationType', undefined);
@@ -155,7 +158,9 @@ export class DebugConfigurationManager {
         this.updateCurrent(option);
     }
     protected updateCurrent(options: DebugSessionOptions | undefined = this._currentOptions): void {
-        this._currentOptions = options && !options.configuration.dynamic ? this.find(options.configuration.name, options.workspaceFolderUri) : options;
+        this._currentOptions =
+            options &&
+            this.find(options.configuration.name, options.workspaceFolderUri, options.configuration.type);
 
         if (!this._currentOptions) {
             const { model } = this;
@@ -172,14 +177,29 @@ export class DebugConfigurationManager {
         this.debugConfigurationTypeKey.set(this.current && this.current.configuration.type);
         this.onDidChangeEmitter.fire(undefined);
     }
-    find(name: string, workspaceFolderUri: string | undefined): DebugSessionOptions | undefined {
+
+    find(name: string, workspaceFolderUri?: string, type?: string): DebugSessionOptions | undefined {
         for (const model of this.models.values()) {
             if (model.workspaceFolderUri === workspaceFolderUri) {
                 for (const configuration of model.configurations) {
+                    if (type && configuration.type !== type) {
+                        continue;
+                    }
                     if (configuration.name === name) {
                         return {
                             configuration,
                             workspaceFolderUri
+                        };
+                    }
+                }
+            }
+        }
+        if (type && this.dynamicDebugConfigurationsPerType) {
+            for (const entry of this.dynamicDebugConfigurationsPerType) {
+                for (const configuration of entry.configurations) {
+                    if (configuration.name === name && configuration.type === type) {
+                        return {
+                            configuration
                         };
                     }
                 }
@@ -312,7 +332,8 @@ export class DebugConfigurationManager {
 
     async provideDynamicDebugConfigurations(): Promise<{ type: string, configurations: DebugConfiguration[] }[]> {
         await this.fireWillProvideDynamicDebugConfiguration();
-        return this.debug.provideDynamicDebugConfigurations!();
+        this.dynamicDebugConfigurationsPerType = await this.debug.provideDynamicDebugConfigurations!();
+        return this.dynamicDebugConfigurationsPerType;
     }
 
     protected async fireWillProvideDynamicDebugConfiguration(): Promise<void> {

@@ -14,20 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import * as React from '@theia/core/shared/react';
-import { injectable, inject, postConstruct } from '@theia/core/shared/inversify';
-import { Disposable } from '@theia/core/lib/common';
-import URI from '@theia/core/lib/common/uri';
 import { ReactWidget } from '@theia/core/lib/browser';
+import { CommandRegistry, Disposable } from '@theia/core/lib/common';
+import { Emitter, Event } from '@theia/core/lib/common/event';
+import { inject, injectable, postConstruct } from '@theia/core/shared/inversify';
+import * as React from '@theia/core/shared/react';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
 import { DebugConsoleContribution } from '../console/debug-console-contribution';
 import { DebugConfigurationManager } from '../debug-configuration-manager';
-import { DebugSessionManager } from '../debug-session-manager';
-import { DebugAction } from './debug-action';
-import { DebugViewModel } from './debug-view-model';
-import { DebugSessionOptions } from '../debug-session-options';
 import { DebugCommands } from '../debug-frontend-application-contribution';
-import { CommandRegistry } from '@theia/core/lib/common';
+import { DebugSessionManager } from '../debug-session-manager';
+import { InternalDebugSessionOptions } from '../debug-session-options';
+import { DebugAction } from './debug-action';
+import { DebugConfigurationOptionsComponent } from './debug-configuration-options-component';
+import { DebugViewModel } from './debug-view-model';
 
 @injectable()
 export class DebugConfigurationWidget extends ReactWidget {
@@ -50,12 +50,18 @@ export class DebugConfigurationWidget extends ReactWidget {
     @inject(WorkspaceService)
     protected readonly workspaceService: WorkspaceService;
 
+    protected readonly onRefreshSelectOptionsEmitter = new Emitter<void>();
+    get onRefreshSelectOptions(): Event<void> {
+        return this.onRefreshSelectOptionsEmitter.event;
+    }
+
     @postConstruct()
     protected init(): void {
         this.addClass('debug-toolbar');
         this.toDispose.push(this.manager.onDidChange(() => this.update()));
         this.toDispose.push(this.workspaceService.onWorkspaceChanged(() => this.update()));
         this.toDispose.push(this.workspaceService.onWorkspaceLocationChanged(() => this.update()));
+        this.toDispose.push(this.onRefreshSelectOptionsEmitter);
         this.scrollOptions = undefined;
         this.update();
     }
@@ -70,45 +76,37 @@ export class DebugConfigurationWidget extends ReactWidget {
         if (!this.stepRef) {
             return false;
         }
+        this.refreshSelectOptions();
         this.stepRef.focus();
         return true;
     }
+
+    refreshSelectOptions = () => {
+        this.onRefreshSelectOptionsEmitter.fire();
+    };
+
     protected stepRef: DebugAction | undefined;
     protected setStepRef = (stepRef: DebugAction | null) => this.stepRef = stepRef || undefined;
 
     render(): React.ReactNode {
-        const { options } = this;
         return <React.Fragment>
             <DebugAction run={this.start} label='Start Debugging' iconClass='debug-start' ref={this.setStepRef} />
-            <select className='theia-select debug-configuration' value={this.currentValue} onChange={this.setCurrentConfiguration}>
-                {options.length ? options : <option value='__NO_CONF__'>No Configurations</option>}
-                <option disabled>{'Add Configuration...'.replace(/./g, '-')}</option>
-                <option value='__ADD_CONF__'>Add Configuration...</option>
+            <select className='theia-select debug-configuration' value={this.currentValue} onChange={this.setCurrentConfiguration}
+                onFocus={this.refreshSelectOptions} onBlur={this.refreshSelectOptions}>
+                <DebugConfigurationOptionsComponent
+                    manager={this.manager}
+                    parent={this}
+                    isMultiRoot={this.workspaceService.isMultiRootWorkspaceOpened}
+                />
             </select>
             <DebugAction run={this.openConfiguration} label='Open launch.json' iconClass='settings-gear' />
             <DebugAction run={this.openConsole} label='Debug Console' iconClass='terminal' />
         </React.Fragment>;
     }
+
     protected get currentValue(): string {
         const { current } = this.manager;
-        return current ? this.toValue(current) : '__NO_CONF__';
-    }
-    protected get options(): React.ReactNode[] {
-        return Array.from(this.manager.all).map((options, index) =>
-            <option key={index} value={this.toValue(options)}>{this.toName(options)}</option>
-        );
-    }
-    protected toValue({ configuration, workspaceFolderUri }: DebugSessionOptions): string {
-        if (!workspaceFolderUri) {
-            return configuration.name;
-        }
-        return configuration.name + '__CONF__' + workspaceFolderUri;
-    }
-    protected toName({ configuration, workspaceFolderUri }: DebugSessionOptions): string {
-        if (!workspaceFolderUri || !this.workspaceService.isMultiRootWorkspaceOpened) {
-            return configuration.name;
-        }
-        return configuration.name + ' (' + new URI(workspaceFolderUri).path.base + ')';
+        return current ? InternalDebugSessionOptions.toValue(current) : '__NO_CONF__';
     }
 
     protected readonly setCurrentConfiguration = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -116,8 +114,8 @@ export class DebugConfigurationWidget extends ReactWidget {
         if (value === '__ADD_CONF__') {
             this.manager.addConfiguration();
         } else {
-            const [name, workspaceFolderUri] = value.split('__CONF__');
-            this.manager.current = this.manager.find(name, workspaceFolderUri);
+            const [name, workspaceFolderUri, type] = InternalDebugSessionOptions.parseValue(value);
+            this.manager.current = this.manager.find(name, workspaceFolderUri, type);
         }
     };
 

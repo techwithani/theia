@@ -128,9 +128,6 @@ export class PluginDebugService implements DebugService, PluginDebugAdapterContr
         contributor: PluginDebugAdapterContribution): Promise<{ type: string, configurations: DebugConfiguration[] }> {
 
         const configurations = await contributor.provideDebugConfigurations(undefined, true);
-        for (const configuration of configurations) {
-            configuration.dynamic = true;
-        }
         return { type, configurations };
     }
 
